@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Importar Ventas{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="fas fa-file-excel"></i> Importar Ventas desde Excel</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="archivo_excel" class="form-label">Seleccionar archivo Excel</label>
+                            <input type="file" class="form-control" id="archivo_excel" name="archivo_excel" 
+                                   accept=".xlsx,.xls" required>
+                            <div class="form-text">Formatos soportados: .xlsx, .xls</div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-info-circle"></i> Formato requerido del archivo Excel:</h6>
+                            <p>El archivo debe tener las siguientes columnas en la primera fila:</p>
+                            <ul>
+                                <li><strong>Columna A:</strong> Fecha (formato: YYYY-MM-DD)</li>
+                                <li><strong>Columna B:</strong> Cliente</li>
+                                <li><strong>Columna C:</strong> Producto</li>
+                                <li><strong>Columna D:</strong> Cantidad</li>
+                                <li><strong>Columna E:</strong> Precio</li>
+                                <li><strong>Columna F:</strong> Vendedor</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-exclamation-triangle"></i> Importante:</h6>
+                            <ul>
+                                <li>Los productos deben existir previamente en el sistema</li>
+                                <li>Los vendedores deben existir previamente en el sistema</li>
+                                <li>Se verificará el stock disponible antes de importar</li>
+                                <li>El stock se actualizará automáticamente</li>
+                                <li>Los clientes se crearán automáticamente si no existen</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ url_for('ventas') }}" class="btn btn-secondary me-md-2">
+                                <i class="fas fa-arrow-left"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-upload"></i> Importar Ventas
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-download"></i> Plantilla de ejemplo</h5>
+                </div>
+                <div class="card-body">
+                    <p>Descarga una plantilla de ejemplo para ver el formato correcto:</p>
+                    <a href="{{ url_for('descargar_plantilla') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-download"></i> Descargar Plantilla
+                    </a>
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-list"></i> Productos disponibles</h5>
+                </div>
+                <div class="card-body">
+                    <p>Productos que puedes usar en la importación:</p>
+                    <ul class="list-unstyled">
+                        {% for producto in productos %}
+                        <li><small class="text-muted">{{ producto.nombre }}</small></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-users"></i> Vendedores disponibles</h5>
+                </div>
+                <div class="card-body">
+                    <p>Vendedores que puedes usar en la importación:</p>
+                    <ul class="list-unstyled">
+                        {% for vendedor in vendedores %}
+                        <li><small class="text-muted">{{ vendedor.username }}</small></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

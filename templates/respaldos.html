@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión de Respaldo{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-database me-2"></i>Gestión de Respaldo</h2>
+            <div>
+                <a href="{{ url_for('crear_respaldo_manual') }}" class="btn btn-success me-2">
+                    <i class="fas fa-plus me-2"></i>Crear Respaldo
+                </a>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Volver al Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Información sobre respaldos -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <h5><i class="fas fa-info-circle me-2"></i>Información sobre Respaldo</h5>
+            <p class="mb-2">Los respaldos se crean automáticamente al iniciar el programa y manualmente cuando lo solicites.</p>
+            <ul class="mb-0">
+                <li><strong>Respaldo automático:</strong> Se crea cada vez que inicias el programa</li>
+                <li><strong>Respaldo manual:</strong> Puedes crear respaldos en cualquier momento</li>
+                <li><strong>Restaurar:</strong> Puedes restaurar desde cualquier respaldo disponible</li>
+                <li><strong>Descargar:</strong> Puedes descargar respaldos para guardarlos externamente</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de respaldos -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-list me-2"></i>Respaldo Disponibles</h5>
+            </div>
+            <div class="card-body">
+                {% if respaldos %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Nombre del Archivo</th>
+                                <th>Fecha de Creación</th>
+                                <th>Tamaño</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for respaldo in respaldos %}
+                            <tr>
+                                <td>
+                                    <i class="fas fa-database text-primary me-2"></i>
+                                    <strong>{{ respaldo.nombre }}</strong>
+                                </td>
+                                <td>{{ respaldo.fecha_formateada }}</td>
+                                <td>
+                                    {% if respaldo.tamaño > 1024*1024 %}
+                                        {{ "%.1f"|format(respaldo.tamaño / (1024*1024)) }} MB
+                                    {% elif respaldo.tamaño > 1024 %}
+                                        {{ "%.1f"|format(respaldo.tamaño / 1024) }} KB
+                                    {% else %}
+                                        {{ respaldo.tamaño }} bytes
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('restaurar_respaldo', filename=respaldo.nombre) }}" 
+                                           class="btn btn-warning btn-sm" 
+                                           onclick="return confirm('¿Estás seguro de que quieres restaurar desde este respaldo? Se creará un respaldo de la base de datos actual antes de restaurar.')">
+                                            <i class="fas fa-undo me-1"></i>Restaurar
+                                        </a>
+                                        <a href="{{ url_for('descargar_respaldo', filename=respaldo.nombre) }}" 
+                                           class="btn btn-info btn-sm">
+                                            <i class="fas fa-download me-1"></i>Descargar
+                                        </a>
+                                        <a href="{{ url_for('eliminar_respaldo', filename=respaldo.nombre) }}" 
+                                           class="btn btn-danger btn-sm" 
+                                           onclick="return confirm('¿Estás seguro de que quieres eliminar este respaldo?')">
+                                            <i class="fas fa-trash me-1"></i>Eliminar
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-database fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No hay respaldos disponibles</h4>
+                    <p class="text-muted">Crea tu primer respaldo para proteger tus datos</p>
+                    <a href="{{ url_for('crear_respaldo_manual') }}" class="btn btn-success">
+                        <i class="fas fa-plus me-2"></i>Crear Primer Respaldo
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas de respaldos -->
+{% if respaldos %}
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-database fa-2x mb-2"></i>
+                <h3>{{ respaldos|length }}</h3>
+                <p class="mb-0">Total de Respaldo</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-clock fa-2x mb-2"></i>
+                <h3>{{ respaldos[0].fecha_formateada if respaldos else 'N/A' }}</h3>
+                <p class="mb-0">Último Respaldo</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-hdd fa-2x mb-2"></i>
+                <h3>
+                    {% set total_size = respaldos|sum(attribute='tamaño') %}
+                    {% if total_size > 1024*1024 %}
+                        {{ "%.1f"|format(total_size / (1024*1024)) }} MB
+                    {% elif total_size > 1024 %}
+                        {{ "%.1f"|format(total_size / 1024) }} KB
+                    {% else %}
+                        {{ total_size }} bytes
+                    {% endif %}
+                </h3>
+                <p class="mb-0">Espacio Total</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Instrucciones -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-question-circle me-2"></i>¿Cómo usar los respaldos?</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-plus-circle text-success me-2"></i>Crear Respaldo</h6>
+                        <p class="text-muted">Haz clic en "Crear Respaldo" para hacer una copia manual de tu base de datos actual.</p>
+                        
+                        <h6><i class="fas fa-undo text-warning me-2"></i>Restaurar</h6>
+                        <p class="text-muted">Selecciona un respaldo y haz clic en "Restaurar" para volver a ese estado. Se creará un respaldo de seguridad antes de restaurar.</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-download text-info me-2"></i>Descargar</h6>
+                        <p class="text-muted">Descarga respaldos para guardarlos en tu computadora o en la nube como copia de seguridad externa.</p>
+                        
+                        <h6><i class="fas fa-trash text-danger me-2"></i>Eliminar</h6>
+                        <p class="text-muted">Elimina respaldos antiguos para liberar espacio en disco. Ten cuidado, esta acción no se puede deshacer.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

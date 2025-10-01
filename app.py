@@ -4,7 +4,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import os
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, Alignment
 
 app = Flask(__name__)
@@ -480,6 +480,10 @@ def ventas():
 @app.route('/ventas/nueva', methods=['GET', 'POST'])
 @login_required
 def nueva_venta():
+    # Validar que solo se puedan crear ventas en el día actual
+    from datetime import date
+    hoy = date.today()
+    
     if request.method == 'POST':
         cliente_id = int(request.form['cliente_id'])
         lugar_entrega_id = int(request.form['lugar_entrega_id'])
@@ -607,6 +611,199 @@ def exportar_ventas():
     
     return response
 
+# Ruta para importar ventas desde Excel
+@app.route('/ventas/importar', methods=['GET', 'POST'])
+@login_required
+def importar_ventas():
+    if request.method == 'POST':
+        if 'archivo_excel' not in request.files:
+            flash('No se seleccionó ningún archivo', 'error')
+            return redirect(url_for('ventas'))
+        
+        archivo = request.files['archivo_excel']
+        if archivo.filename == '':
+            flash('No se seleccionó ningún archivo', 'error')
+            return redirect(url_for('ventas'))
+        
+        if archivo and archivo.filename.endswith(('.xlsx', '.xls')):
+            try:
+                # Cargar el archivo Excel
+                wb = load_workbook(archivo)
+                ws = wb.active
+                
+                ventas_importadas = 0
+                errores = []
+                
+                # Leer datos del Excel (asumiendo formato: Fecha, Cliente, Producto, Cantidad, Precio, Vendedor)
+                for row in range(2, ws.max_row + 1):  # Saltar encabezados
+                    try:
+                        fecha_str = ws.cell(row=row, column=1).value
+                        cliente_nombre = ws.cell(row=row, column=2).value
+                        producto_nombre = ws.cell(row=row, column=3).value
+                        cantidad = ws.cell(row=row, column=4).value
+                        precio = ws.cell(row=row, column=5).value
+                        vendedor_nombre = ws.cell(row=row, column=6).value
+                        
+                        if not all([fecha_str, cliente_nombre, producto_nombre, cantidad, precio, vendedor_nombre]):
+                            continue
+                        
+                        # Buscar o crear cliente
+                        cliente = Cliente.query.filter_by(nombre=cliente_nombre).first()
+                        if not cliente:
+                            cliente = Cliente(nombre=cliente_nombre, telefono='')
+                            db.session.add(cliente)
+                            db.session.flush()
+                        
+                        # Buscar producto
+                        producto = Producto.query.filter_by(nombre=producto_nombre).first()
+                        if not producto:
+                            errores.append(f"Producto '{producto_nombre}' no encontrado en fila {row}")
+                            continue
+                        
+                        # Verificar stock
+                        if producto.stock.cantidad_disponible < cantidad:
+                            errores.append(f"Stock insuficiente para '{producto_nombre}' en fila {row}")
+                            continue
+                        
+                        # Buscar vendedor
+                        vendedor = Usuario.query.filter_by(username=vendedor_nombre).first()
+                        if not vendedor:
+                            errores.append(f"Vendedor '{vendedor_nombre}' no encontrado en fila {row}")
+                            continue
+                        
+                        # Crear lugar de entrega por defecto
+                        lugar_entrega = LugarEntrega.query.filter_by(nombre='Importado').first()
+                        if not lugar_entrega:
+                            lugar_entrega = LugarEntrega(
+                                nombre='Importado',
+                                direccion='Importado desde Excel',
+                                telefono='',
+                                tipo='importado'
+                            )
+                            db.session.add(lugar_entrega)
+                            db.session.flush()
+                        
+                        # Crear venta
+                        venta = Venta(
+                            fecha=datetime.strptime(fecha_str, '%Y-%m-%d') if isinstance(fecha_str, str) else fecha_str,
+                            cliente_id=cliente.id,
+                            lugar_entrega_id=lugar_entrega.id,
+                            vendedor_id=vendedor.id,
+                            estado='contraentrega',
+                            total=precio * cantidad
+                        )
+                        db.session.add(venta)
+                        db.session.flush()
+                        
+                        # Agregar producto a la venta
+                        db.session.execute(venta_producto.insert().values(
+                            venta_id=venta.id,
+                            producto_id=producto.id,
+                            cantidad=cantidad,
+                            precio_unitario=precio
+                        ))
+                        
+                        # Registrar ganancia
+                        ganancia_unitaria = precio - producto.precio_compra
+                        ganancia_total = ganancia_unitaria * cantidad
+                        
+                        ganancia = Ganancias(
+                            producto_id=producto.id,
+                            venta_id=venta.id,
+                            cantidad_vendida=cantidad,
+                            precio_venta=precio,
+                            precio_compra=producto.precio_compra,
+                            ganancia_unitaria=ganancia_unitaria,
+                            ganancia_total=ganancia_total
+                        )
+                        db.session.add(ganancia)
+                        
+                        # Actualizar stock
+                        producto.stock.cantidad_disponible -= cantidad
+                        
+                        ventas_importadas += 1
+                        
+                    except Exception as e:
+                        errores.append(f"Error en fila {row}: {str(e)}")
+                        continue
+                
+                db.session.commit()
+                
+                if ventas_importadas > 0:
+                    flash(f'Se importaron {ventas_importadas} ventas exitosamente', 'success')
+                if errores:
+                    flash(f'Errores encontrados: {len(errores)}', 'warning')
+                    for error in errores[:5]:  # Mostrar solo los primeros 5 errores
+                        flash(error, 'error')
+                
+                return redirect(url_for('ventas'))
+                
+            except Exception as e:
+                flash(f'Error al procesar el archivo: {str(e)}', 'error')
+                return redirect(url_for('ventas'))
+        else:
+            flash('Formato de archivo no válido. Use archivos .xlsx o .xls', 'error')
+            return redirect(url_for('ventas'))
+    
+    # Obtener productos y vendedores para mostrar en la plantilla
+    productos = Producto.query.all()
+    vendedores = Usuario.query.all()
+    return render_template('importar_ventas.html', productos=productos, vendedores=vendedores)
+
+# Ruta para descargar plantilla de Excel
+@app.route('/ventas/plantilla')
+@login_required
+def descargar_plantilla():
+    # Crear libro de Excel con plantilla
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Plantilla Ventas"
+    
+    # Encabezados
+    headers = ['Fecha', 'Cliente', 'Producto', 'Cantidad', 'Precio', 'Vendedor']
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal='center')
+    
+    # Datos de ejemplo
+    ejemplos = [
+        ['2024-01-15', 'Juan Pérez', 'Producto A', 2, 25.50, 'Alonso'],
+        ['2024-01-16', 'María García', 'Producto B', 1, 15.00, 'Andrea'],
+        ['2024-01-17', 'Carlos López', 'Producto A', 3, 25.50, 'Alonso']
+    ]
+    
+    for row, ejemplo in enumerate(ejemplos, 2):
+        for col, valor in enumerate(ejemplo, 1):
+            ws.cell(row=row, column=col, value=valor)
+    
+    # Ajustar ancho de columnas
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = (max_length + 2)
+        ws.column_dimensions[column_letter].width = adjusted_width
+    
+    # Crear respuesta
+    response = make_response()
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    response.headers['Content-Disposition'] = 'attachment; filename=plantilla_ventas.xlsx'
+    
+    # Guardar en memoria
+    from io import BytesIO
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    response.data = output.getvalue()
+    
+    return response
+
 # Rutas para Ganancias
 @app.route('/ganancias')
 @login_required
@@ -616,8 +813,26 @@ def ganancias():
     total_ventas = Venta.query.count()
     ganancia_promedio = total_ganancias / total_ventas if total_ventas > 0 else 0
     
-    # Ganancias por producto (sin duplicados)
-    ganancias_por_producto = db.session.query(
+    # Todas las ventas individuales con información del vendedor (excluyendo cantidad 0)
+    ventas_detalladas = db.session.query(
+        Ganancias.id,
+        Ganancias.fecha,
+        Producto.nombre.label('producto_nombre'),
+        Cliente.nombre.label('cliente_nombre'),
+        Usuario.username.label('vendedor_nombre'),
+        Ganancias.cantidad_vendida,
+        Ganancias.precio_venta,
+        Ganancias.precio_compra,
+        Ganancias.ganancia_unitaria,
+        Ganancias.ganancia_total,
+        Venta.total.label('venta_total'),
+        Venta.estado
+    ).join(Producto).join(Venta).join(Cliente).join(Usuario).filter(
+        Ganancias.cantidad_vendida > 0
+    ).order_by(Ganancias.fecha.desc()).all()
+    
+    # Ganancias por producto (sin duplicados) - para estadísticas (excluyendo cantidad 0)
+    ganancias_por_producto_raw = db.session.query(
         Producto.id,
         Producto.nombre,
         Producto.precio,
@@ -626,23 +841,197 @@ def ganancias():
         db.func.sum(Ganancias.cantidad_vendida).label('cantidad_vendida'),
         db.func.avg(Ganancias.ganancia_unitaria).label('ganancia_promedio'),
         (Producto.precio - Producto.precio_compra).label('diferencia_precio')
-    ).join(Ganancias).group_by(Producto.id, Producto.nombre, Producto.precio, Producto.precio_compra).all()
+    ).join(Ganancias).filter(
+        Ganancias.cantidad_vendida > 0
+    ).group_by(Producto.id, Producto.nombre, Producto.precio, Producto.precio_compra).all()
     
-    # Ganancias recientes
-    ganancias_recientes = Ganancias.query.join(Producto).order_by(Ganancias.fecha.desc()).limit(10).all()
+    # Convertir a diccionarios para JSON
+    ganancias_por_producto = []
+    for row in ganancias_por_producto_raw:
+        ganancias_por_producto.append({
+            'id': row.id,
+            'nombre': row.nombre,
+            'precio': float(row.precio),
+            'precio_compra': float(row.precio_compra),
+            'ganancia_total': float(row.ganancia_total or 0),
+            'cantidad_vendida': int(row.cantidad_vendida or 0),
+            'ganancia_promedio': float(row.ganancia_promedio or 0),
+            'diferencia_precio': float(row.diferencia_precio or 0)
+        })
+    
+    # Calcular ganancias diarias para la gráfica lineal
+    ganancias_diarias_raw = db.session.query(
+        db.func.date(db.func.datetime(Ganancias.fecha, '-5 hours')).label('fecha'),
+        db.func.sum(Ganancias.ganancia_total).label('ganancia_diaria')
+    ).filter(
+        Ganancias.cantidad_vendida > 0
+    ).group_by(db.func.date(db.func.datetime(Ganancias.fecha, '-5 hours'))).order_by(
+        db.func.date(db.func.datetime(Ganancias.fecha, '-5 hours'))
+    ).all()
+    
+    # Convertir a diccionarios para JSON
+    ganancias_diarias = []
+    for row in ganancias_diarias_raw:
+        ganancias_diarias.append({
+            'fecha': str(row.fecha),
+            'ganancia_diaria': float(row.ganancia_diaria or 0)
+        })
+    
+    # Consulta para ganancias en tiempo real del día actual (por venta individual)
+    from datetime import datetime, date
+    hoy = date.today()
+    ganancias_tiempo_real_raw = db.session.query(
+        Ganancias.fecha.label('fecha_venta'),
+        Ganancias.ganancia_total.label('ganancia_venta'),
+        Producto.nombre.label('producto_nombre'),
+        Cliente.nombre.label('cliente_nombre'),
+        Usuario.username.label('vendedor_nombre')
+    ).join(Producto).join(Venta).join(Cliente).join(Usuario).filter(
+        db.func.date(Ganancias.fecha) == hoy,
+        Ganancias.cantidad_vendida > 0
+    ).order_by(Ganancias.fecha).all()
+    
+    # Convertir ganancias en tiempo real a diccionarios
+    ganancias_tiempo_real = []
+    ganancia_acumulada = 0
+    for row in ganancias_tiempo_real_raw:
+        ganancia_acumulada += float(row.ganancia_venta or 0)
+        ganancias_tiempo_real.append({
+            'fecha_venta': row.fecha_venta.isoformat() if row.fecha_venta else None,
+            'ganancia_venta': float(row.ganancia_venta or 0),
+            'ganancia_acumulada': ganancia_acumulada,
+            'producto_nombre': row.producto_nombre,
+            'cliente_nombre': row.cliente_nombre,
+            'vendedor_nombre': row.vendedor_nombre
+        })
+    
+    # Convertir ventas detalladas a diccionarios
+    ventas_detalladas_dict = []
+    for row in ventas_detalladas:
+        ventas_detalladas_dict.append({
+            'id': row.id,
+            'fecha': row.fecha.isoformat() if row.fecha else None,
+            'producto_nombre': row.producto_nombre,
+            'cliente_nombre': row.cliente_nombre,
+            'vendedor_nombre': row.vendedor_nombre,
+            'cantidad_vendida': int(row.cantidad_vendida),
+            'precio_venta': float(row.precio_venta),
+            'precio_compra': float(row.precio_compra),
+            'ganancia_unitaria': float(row.ganancia_unitaria),
+            'ganancia_total': float(row.ganancia_total),
+            'venta_total': float(row.venta_total or 0),
+            'estado': row.estado
+        })
+    
+    # Calcular total del día actual
+    total_hoy = sum(ganancia['ganancia_venta'] for ganancia in ganancias_tiempo_real)
     
     return render_template('ganancias.html', 
                          total_ganancias=total_ganancias,
                          total_ventas=total_ventas,
                          ganancia_promedio=ganancia_promedio,
                          ganancias_por_producto=ganancias_por_producto,
-                         ganancias_recientes=ganancias_recientes)
+                         ventas_detalladas=ventas_detalladas_dict,
+                         ganancias_diarias=ganancias_diarias,
+                         ganancias_tiempo_real=ganancias_tiempo_real,
+                         total_hoy=total_hoy)
 
+@app.route('/ganancias/data')
+@login_required
+def ganancias_data():
+    """Datos JSON en tiempo real para actualizar las gráficas de ganancias"""
+    # Estadísticas generales
+    total_ganancias = db.session.query(db.func.sum(Ganancias.ganancia_total)).scalar() or 0
+    total_ventas = Venta.query.count()
+    ganancia_promedio = total_ganancias / total_ventas if total_ventas > 0 else 0
+
+    # Ganancias por producto (excluyendo cantidad 0)
+    ganancias_por_producto_raw = db.session.query(
+        Producto.id,
+        Producto.nombre,
+        Producto.precio,
+        Producto.precio_compra,
+        db.func.sum(Ganancias.ganancia_total).label('ganancia_total'),
+        db.func.sum(Ganancias.cantidad_vendida).label('cantidad_vendida'),
+        db.func.avg(Ganancias.ganancia_unitaria).label('ganancia_promedio'),
+        (Producto.precio - Producto.precio_compra).label('diferencia_precio')
+    ).join(Ganancias).filter(
+        Ganancias.cantidad_vendida > 0
+    ).group_by(Producto.id, Producto.nombre, Producto.precio, Producto.precio_compra).all()
+
+    ganancias_por_producto = []
+    for row in ganancias_por_producto_raw:
+        ganancias_por_producto.append({
+            'id': row.id,
+            'nombre': row.nombre,
+            'precio': float(row.precio),
+            'precio_compra': float(row.precio_compra),
+            'ganancia_total': float(row.ganancia_total or 0),
+            'cantidad_vendida': int(row.cantidad_vendida or 0),
+            'ganancia_promedio': float(row.ganancia_promedio or 0),
+            'diferencia_precio': float(row.diferencia_precio or 0)
+        })
+
+    # Ganancias diarias (histórico por día) en hora de Perú (UTC-5)
+    ganancias_diarias_raw = db.session.query(
+        db.func.date(db.func.datetime(Ganancias.fecha, '-5 hours')).label('fecha'),
+        db.func.sum(Ganancias.ganancia_total).label('ganancia_diaria')
+    ).filter(
+        Ganancias.cantidad_vendida > 0
+    ).group_by(db.func.date(db.func.datetime(Ganancias.fecha, '-5 hours'))).order_by(
+        db.func.date(db.func.datetime(Ganancias.fecha, '-5 hours'))
+    ).all()
+
+    ganancias_diarias = []
+    for row in ganancias_diarias_raw:
+        ganancias_diarias.append({
+            'fecha': str(row.fecha),
+            'ganancia_diaria': float(row.ganancia_diaria or 0)
+        })
+
+    # Ganancias en tiempo real (por venta de hoy)
+    from datetime import date
+    hoy = date.today()
+    ganancias_tiempo_real_raw = db.session.query(
+        Ganancias.fecha.label('fecha_venta'),
+        Ganancias.ganancia_total.label('ganancia_venta')
+    ).filter(
+        db.func.date(Ganancias.fecha) == hoy,
+        Ganancias.cantidad_vendida > 0
+    ).order_by(Ganancias.fecha).all()
+
+    ganancias_tiempo_real = []
+    ganancia_acumulada = 0
+    for row in ganancias_tiempo_real_raw:
+        ganancia_venta = float(row.ganancia_venta or 0)
+        ganancia_acumulada += ganancia_venta
+        ganancias_tiempo_real.append({
+            'fecha_venta': row.fecha_venta.isoformat() if row.fecha_venta else None,
+            'ganancia_venta': ganancia_venta,
+            'ganancia_acumulada': ganancia_acumulada
+        })
+
+    total_hoy = ganancia_acumulada
+    ventas_hoy = len(ganancias_tiempo_real)
+
+    return jsonify({
+        'total_ganancias': float(total_ganancias),
+        'total_ventas': int(total_ventas),
+        'ganancia_promedio': float(ganancia_promedio),
+        'ganancias_por_producto': ganancias_por_producto,
+        'ganancias_diarias': ganancias_diarias,
+        'ganancias_tiempo_real': ganancias_tiempo_real,
+        'total_hoy': float(total_hoy),
+        'ventas_hoy': int(ventas_hoy),
+        'currency_symbol': 'S/.'
+    })
 @app.route('/ganancias/producto/<int:producto_id>')
 @login_required
 def ganancias_producto(producto_id):
     producto = Producto.query.get_or_404(producto_id)
-    ganancias = Ganancias.query.filter_by(producto_id=producto_id).order_by(Ganancias.fecha.desc()).all()
+    ganancias = Ganancias.query.filter_by(producto_id=producto_id).filter(
+        Ganancias.cantidad_vendida > 0
+    ).order_by(Ganancias.fecha.desc()).all()
     
     # Estadísticas del producto
     total_ganancia = sum(g.ganancia_total for g in ganancias)
@@ -663,6 +1052,118 @@ def logout():
     flash('Has cerrado sesión correctamente', 'info')
     return redirect(url_for('login'))
 
+# Rutas para gestión de respaldos
+@app.route('/respaldos')
+@login_required
+def respaldos():
+    """Mostrar lista de respaldos disponibles"""
+    try:
+        import os
+        from datetime import datetime
+        
+        backup_dir = 'backups'
+        respaldos = []
+        
+        if os.path.exists(backup_dir):
+            for filename in os.listdir(backup_dir):
+                if filename.endswith('.db'):
+                    file_path = os.path.join(backup_dir, filename)
+                    file_stats = os.stat(file_path)
+                    file_size = file_stats.st_size
+                    file_date = datetime.fromtimestamp(file_stats.st_mtime)
+                    
+                    respaldos.append({
+                        'nombre': filename,
+                        'ruta': file_path,
+                        'tamaño': file_size,
+                        'fecha': file_date,
+                        'fecha_formateada': file_date.strftime('%d/%m/%Y %H:%M:%S')
+                    })
+            
+            # Ordenar por fecha (más recientes primero)
+            respaldos.sort(key=lambda x: x['fecha'], reverse=True)
+        
+        return render_template('respaldos.html', respaldos=respaldos)
+    except Exception as e:
+        flash(f'Error al cargar respaldos: {str(e)}', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/respaldos/crear')
+@login_required
+def crear_respaldo_manual():
+    """Crear respaldo manual"""
+    try:
+        backup_path = crear_respaldo_automatico()
+        if backup_path:
+            flash('Respaldo creado exitosamente', 'success')
+        else:
+            flash('Error al crear el respaldo', 'error')
+    except Exception as e:
+        flash(f'Error al crear respaldo: {str(e)}', 'error')
+    
+    return redirect(url_for('respaldos'))
+
+@app.route('/respaldos/restaurar/<filename>')
+@login_required
+def restaurar_respaldo(filename):
+    """Restaurar desde un respaldo"""
+    try:
+        import shutil
+        from flask import request
+        
+        backup_path = os.path.join('backups', filename)
+        if not os.path.exists(backup_path):
+            flash('El respaldo no existe', 'error')
+            return redirect(url_for('respaldos'))
+        
+        # Crear respaldo de la base de datos actual antes de restaurar
+        crear_respaldo_automatico()
+        
+        # Restaurar el respaldo
+        db_path = 'instance/sistema_ventas.db'
+        shutil.copy2(backup_path, db_path)
+        
+        flash(f'Base de datos restaurada desde {filename}', 'success')
+        return redirect(url_for('dashboard'))
+        
+    except Exception as e:
+        flash(f'Error al restaurar respaldo: {str(e)}', 'error')
+        return redirect(url_for('respaldos'))
+
+@app.route('/respaldos/descargar/<filename>')
+@login_required
+def descargar_respaldo(filename):
+    """Descargar un respaldo"""
+    try:
+        from flask import send_file
+        
+        backup_path = os.path.join('backups', filename)
+        if not os.path.exists(backup_path):
+            flash('El respaldo no existe', 'error')
+            return redirect(url_for('respaldos'))
+        
+        return send_file(backup_path, as_attachment=True, download_name=filename)
+        
+    except Exception as e:
+        flash(f'Error al descargar respaldo: {str(e)}', 'error')
+        return redirect(url_for('respaldos'))
+
+@app.route('/respaldos/eliminar/<filename>')
+@login_required
+def eliminar_respaldo(filename):
+    """Eliminar un respaldo"""
+    try:
+        backup_path = os.path.join('backups', filename)
+        if os.path.exists(backup_path):
+            os.remove(backup_path)
+            flash(f'Respaldo {filename} eliminado exitosamente', 'success')
+        else:
+            flash('El respaldo no existe', 'error')
+    except Exception as e:
+        flash(f'Error al eliminar respaldo: {str(e)}', 'error')
+    
+    return redirect(url_for('respaldos'))
+
 def crear_usuarios_estaticos():
     """Crear usuarios estáticos si no existen"""
     try:
@@ -682,14 +1183,104 @@ def crear_usuarios_estaticos():
         print(f"Usuarios ya existen o error: {e}")
         db.session.rollback()
 
+def crear_respaldo_automatico():
+    """Crear respaldo automático de la base de datos"""
+    try:
+        from shutil import copy2
+        import os
+        from datetime import datetime
+        
+        # Crear directorio de respaldos si no existe
+        backup_dir = 'backups'
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir)
+        
+        # Nombre del archivo de respaldo con timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_filename = f'backup_sistema_ventas_{timestamp}.db'
+        backup_path = os.path.join(backup_dir, backup_filename)
+        
+        # Copiar la base de datos actual
+        db_path = 'instance/sistema_ventas.db'
+        if os.path.exists(db_path):
+            copy2(db_path, backup_path)
+            print(f"Respaldo creado: {backup_path}")
+            return backup_path
+        else:
+            print("No se encontró la base de datos para respaldar")
+            return None
+    except Exception as e:
+        print(f"Error al crear respaldo: {e}")
+        return None
+
+def es_venta_del_dia_actual(fecha_venta):
+    """Verifica si una venta es del día actual"""
+    from datetime import date
+    hoy = date.today()
+    return fecha_venta.date() == hoy
+
+def cargar_datos_existentes():
+    """Cargar datos existentes o crear estructura inicial"""
+    try:
+        # Verificar si la base de datos existe
+        db_path = 'instance/sistema_ventas.db'
+        if os.path.exists(db_path):
+            print("Cargando base de datos existente...")
+            # Solo crear las tablas si no existen
+            db.create_all()
+            print("Base de datos cargada exitosamente")
+        else:
+            print("Creando nueva base de datos...")
+            # Crear directorio instance si no existe
+            os.makedirs('instance', exist_ok=True)
+            db.create_all()
+            print("Base de datos creada exitosamente")
+        
+        # Crear usuarios estáticos solo si no existen
+        crear_usuarios_estaticos()
+        
+        # Crear respaldo inicial solo si no hay respaldos recientes
+        crear_respaldo_si_es_necesario()
+        
+    except Exception as e:
+        print(f"Error al cargar datos: {e}")
+
+def crear_respaldo_si_es_necesario():
+    """Crear respaldo solo si es necesario (no hay respaldos recientes)"""
+    try:
+        import os
+        from datetime import datetime, timedelta
+        
+        backup_dir = 'backups'
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir)
+            # Si no existe el directorio, crear el primer respaldo
+            crear_respaldo_automatico()
+            return
+        
+        # Verificar si hay respaldos recientes (últimas 24 horas)
+        respaldos_recientes = []
+        for filename in os.listdir(backup_dir):
+            if filename.endswith('.db'):
+                file_path = os.path.join(backup_dir, filename)
+                file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+                if file_time > datetime.now() - timedelta(hours=24):
+                    respaldos_recientes.append(file_time)
+        
+        # Si no hay respaldos recientes, crear uno
+        if not respaldos_recientes:
+            print("No hay respaldos recientes, creando respaldo automático...")
+            crear_respaldo_automatico()
+        else:
+            print(f"Ya existen {len(respaldos_recientes)} respaldos recientes")
+            
+    except Exception as e:
+        print(f"Error al verificar respaldos: {e}")
+        # En caso de error, crear respaldo de seguridad
+        crear_respaldo_automatico()
+
 if __name__ == '__main__':
     with app.app_context():
-        # Eliminar todas las tablas existentes y recrearlas
-        db.drop_all()
-        db.create_all()
-        print("Base de datos recreada exitosamente")
-        
-        # Crear usuarios estáticos
-        crear_usuarios_estaticos()
+        cargar_datos_existentes()
         
     app.run(debug=True)
