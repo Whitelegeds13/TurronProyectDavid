@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Lugares de Entrega{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-map-marker-alt me-2"></i>Lugares de Entrega</h2>
+            <a href="{{ url_for('nuevo_lugar_entrega') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Nuevo Lugar de Entrega
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    {% for lugar in lugares %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ lugar.nombre }}</h5>
+                <div class="mb-2">
+                    <small class="text-muted">Dirección:</small>
+                    <p class="mb-1">{{ lugar.direccion or 'No especificada' }}</p>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">Teléfono:</small>
+                    <p class="mb-1">{{ lugar.telefono or 'No especificado' }}</p>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">Tipo:</small>
+                    <span class="badge bg-info">{{ lugar.tipo.title() }}</span>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">Entregas:</small>
+                    <span class="badge bg-success">{{ lugar.ventas|length }}</span>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="btn-group w-100" role="group">
+                    <a href="{{ url_for('editar_lugar_entrega', lugar_id=lugar.id) }}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-edit"></i> Editar
+                    </a>
+                    <a href="{{ url_for('eliminar_lugar_entrega', lugar_id=lugar.id) }}" 
+                       class="btn btn-outline-danger btn-sm"
+                       onclick="return confirm('¿Estás seguro de que quieres eliminar este lugar de entrega?')">
+                        <i class="fas fa-trash"></i> Eliminar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-map-marker-alt fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">No hay lugares de entrega registrados</h4>
+                <p class="text-muted">Comienza agregando tu primer lugar de entrega</p>
+                <a href="{{ url_for('nuevo_lugar_entrega') }}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>Agregar Lugar
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Sistema de Ventas{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card mt-4">
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <i class="fas fa-store fa-3x text-primary mb-3"></i>
+                    <h2 class="card-title">Sistema de Ventas</h2>
+                    <p class="text-muted">¡Bienvenido, {{ user.username }}!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas -->
+<div class="row mt-4">
+    <div class="col-md-3 mb-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-box fa-2x mb-2"></i>
+                <h4>{{ total_productos }}</h4>
+                <p class="mb-0">Productos</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-users fa-2x mb-2"></i>
+                <h4>{{ total_clientes }}</h4>
+                <p class="mb-0">Clientes</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                <h4>{{ total_ventas }}</h4>
+                <p class="mb-0">Ventas</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-map-marker-alt fa-2x mb-2"></i>
+                <h4>{{ total_lugares }}</h4>
+                <p class="mb-0">Lugares de Entrega</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Navegación rápida -->
+<div class="row mt-4">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-box fa-2x text-primary mb-3"></i>
+                <h5>Gestionar Productos</h5>
+                <p class="text-muted">Administra tu inventario</p>
+                <a href="{{ url_for('productos') }}" class="btn btn-primary">Ver Productos</a>
+                <a href="{{ url_for('nuevo_producto') }}" class="btn btn-outline-primary">Nuevo Producto</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-shopping-cart fa-2x text-success mb-3"></i>
+                <h5>Gestionar Ventas</h5>
+                <p class="text-muted">Procesa nuevas ventas</p>
+                <a href="{{ url_for('ventas') }}" class="btn btn-success">Ver Ventas</a>
+                <a href="{{ url_for('nueva_venta') }}" class="btn btn-outline-success">Nueva Venta</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-users fa-2x text-info mb-3"></i>
+                <h5>Gestionar Clientes</h5>
+                <p class="text-muted">Administra tu base de clientes</p>
+                <a href="{{ url_for('clientes') }}" class="btn btn-info">Ver Clientes</a>
+                <a href="{{ url_for('nuevo_cliente') }}" class="btn btn-outline-info">Nuevo Cliente</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-tags fa-2x text-warning mb-3"></i>
+                <h5>Categorías</h5>
+                <p class="text-muted">Organiza tus productos</p>
+                <a href="{{ url_for('categorias') }}" class="btn btn-warning">Ver Categorías</a>
+                <a href="{{ url_for('nueva_categoria') }}" class="btn btn-outline-warning">Nueva Categoría</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-map-marker-alt fa-2x text-secondary mb-3"></i>
+                <h5>Gestionar Lugares de Entrega</h5>
+                <p class="text-muted">Administra tus puntos de entrega</p>
+                <a href="{{ url_for('lugares_entrega') }}" class="btn btn-secondary">Ver Lugares</a>
+                <a href="{{ url_for('nuevo_lugar_entrega') }}" class="btn btn-outline-secondary">Nuevo Lugar</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-chart-line fa-2x text-success mb-3"></i>
+                <h5>Ganancias</h5>
+                <p class="text-muted">Analiza tu rentabilidad</p>
+                <a href="{{ url_for('ganancias') }}" class="btn btn-success">
+                    <i class="fas fa-chart-line me-2"></i>Ver Ganancias
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-user-cog fa-2x text-dark mb-3"></i>
+                <h5>Configuración</h5>
+                <p class="text-muted">Gestiona tu cuenta</p>
+                <a href="{{ url_for('logout') }}" class="btn btn-danger">
+                    <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

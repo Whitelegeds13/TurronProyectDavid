@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Ventas{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-shopping-cart me-2"></i>Ventas</h2>
+            <div>
+                <a href="{{ url_for('exportar_ventas') }}" class="btn btn-success me-2">
+                    <i class="fas fa-file-excel me-2"></i>Exportar Excel
+                </a>
+                <a href="{{ url_for('nueva_venta') }}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>Nueva Venta
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    {% for venta in ventas %}
+    <div class="col-12 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-2">
+                        <h6 class="mb-0">#{{ venta.id }}</h6>
+                        <small class="text-muted">{{ venta.fecha.strftime('%d/%m/%Y %H:%M') }}</small>
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Cliente:</strong> {{ venta.cliente.nombre }}<br>
+                        <strong>Lugar:</strong> {{ venta.lugar_entrega.nombre }}<br>
+                        <strong>Vendedor:</strong> {{ venta.vendedor.username }}
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Productos:</strong> {{ venta.productos|length }}<br>
+                        <strong>Estado:</strong> 
+                        <span class="badge {% if venta.estado == 'cancelado' %}bg-success{% elif venta.estado == 'abonado' %}bg-warning{% else %}bg-info{% endif %}">
+                            {{ venta.estado.title() }}
+                        </span><br>
+                        {% if venta.descuento %}
+                        <small class="text-success">Descuento: {{ venta.descuento.nombre }}</small>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-2">
+                        <h5 class="text-success mb-0">${{ "%.2f"|format(venta.total) }}</h5>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <button class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-eye"></i> Ver
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">No hay ventas registradas</h4>
+                <p class="text-muted">Comienza realizando tu primera venta</p>
+                <a href="{{ url_for('nueva_venta') }}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>Realizar Venta
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

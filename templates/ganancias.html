@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Ganancias{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-chart-line me-2"></i>Análisis de Ganancias</h2>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Volver al Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas Generales -->
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-dollar-sign fa-2x mb-2"></i>
+                <h3>${{ "%.2f"|format(total_ganancias) }}</h3>
+                <p class="mb-0">Ganancias Totales</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                <h3>{{ total_ventas }}</h3>
+                <p class="mb-0">Total de Ventas</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-chart-bar fa-2x mb-2"></i>
+                <h3>${{ "%.2f"|format(ganancia_promedio) }}</h3>
+                <p class="mb-0">Ganancia Promedio</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ganancias por Producto -->
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-box me-2"></i>Ganancias por Producto</h5>
+            </div>
+            <div class="card-body">
+                {% if ganancias_por_producto %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Diferencia de Ganancias</th>
+                                <th>Cantidad Vendida</th>
+                                <th>Ganancia Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ganancia in ganancias_por_producto %}
+                            <tr>
+                                <td>{{ ganancia.nombre }}</td>
+                                <td class="{% if ganancia.diferencia_precio > 0 %}text-success{% else %}text-danger{% endif %} fw-bold">
+                                    ${{ "%.2f"|format(ganancia.diferencia_precio) }}
+                                </td>
+                                <td>{{ ganancia.cantidad_vendida }}</td>
+                                <td class="text-success fw-bold">${{ "%.2f"|format(ganancia.ganancia_total) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No hay ganancias registradas</h5>
+                    <p class="text-muted">Realiza algunas ventas para ver las ganancias</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Ganancias Recientes</h5>
+            </div>
+            <div class="card-body">
+                {% if ganancias_recientes %}
+                <div class="list-group list-group-flush">
+                    {% for ganancia in ganancias_recientes %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{{ ganancia.producto.nombre }}</h6>
+                            <small class="text-muted">{{ ganancia.fecha.strftime('%d/%m/%Y %H:%M') }}</small>
+                        </div>
+                        <span class="badge bg-success">${{ "%.2f"|format(ganancia.ganancia_total) }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <i class="fas fa-clock fa-2x text-muted mb-2"></i>
+                    <p class="text-muted mb-0">No hay ganancias recientes</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

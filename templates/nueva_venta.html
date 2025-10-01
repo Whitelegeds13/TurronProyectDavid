@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Nueva Venta{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card mt-4">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>Nueva Venta</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <label for="cliente_id" class="form-label">Cliente</label>
+                            <select class="form-select" id="cliente_id" name="cliente_id" required>
+                                <option value="">Selecciona un cliente</option>
+                                {% for cliente in clientes %}
+                                <option value="{{ cliente.id }}">{{ cliente.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">
+                                <a href="{{ url_for('nuevo_cliente') }}" class="text-decoration-none">
+                                    <i class="fas fa-plus"></i> Agregar cliente
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label for="lugar_entrega_id" class="form-label">Lugar de Entrega</label>
+                            <select class="form-select" id="lugar_entrega_id" name="lugar_entrega_id" required>
+                                <option value="">Selecciona un lugar</option>
+                                {% for lugar in lugares_entrega %}
+                                <option value="{{ lugar.id }}">{{ lugar.nombre }} ({{ lugar.tipo }})</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">
+                                <a href="{{ url_for('nuevo_lugar_entrega') }}" class="text-decoration-none">
+                                    <i class="fas fa-plus"></i> Agregar lugar
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label for="vendedor_id" class="form-label">Vendedor</label>
+                            <select class="form-select" id="vendedor_id" name="vendedor_id" required>
+                                <option value="">Selecciona un vendedor</option>
+                                {% for vendedor in vendedores %}
+                                <option value="{{ vendedor.id }}">{{ vendedor.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label for="estado" class="form-label">Estado</label>
+                            <select class="form-select" id="estado" name="estado" required>
+                                <option value="contraentrega">Contraentrega</option>
+                                <option value="cancelado">Cancelado (Pagado)</option>
+                                <option value="abonado">Abonado</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label for="descuento_id" class="form-label">Descuento (Opcional)</label>
+                            <select class="form-select" id="descuento_id" name="descuento_id">
+                                <option value="">Sin descuento</option>
+                                {% for descuento in descuentos %}
+                                <option value="{{ descuento.id }}">{{ descuento.nombre }} ({{ descuento.porcentaje }}%)</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <h5 class="mb-3">Productos</h5>
+                    <div class="row">
+                        {% for producto in productos %}
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ producto.nombre }}</h6>
+                                    <p class="card-text small">{{ producto.descripcion }}</p>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-success fw-bold">${{ "%.2f"|format(producto.precio) }}</span>
+                                        <span class="badge bg-info">Stock: {{ producto.stock.cantidad_disponible }}</span>
+                                    </div>
+                                    <div class="mt-2">
+                                        <label for="producto_{{ producto.id }}" class="form-label small">Cantidad:</label>
+                                        <input type="number" class="form-control form-control-sm" 
+                                               id="producto_{{ producto.id }}" name="producto_{{ producto.id }}" 
+                                               min="0" max="{{ producto.stock.cantidad_disponible }}" value="0">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="col-12">
+                            <div class="alert alert-warning text-center">
+                                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                                <h5>No hay productos disponibles</h5>
+                                <p>Primero necesitas agregar productos con stock disponible</p>
+                                <a href="{{ url_for('nuevo_producto') }}" class="btn btn-primary">
+                                    <i class="fas fa-plus me-2"></i>Agregar Producto
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{{ url_for('ventas') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-success" {% if not productos %}disabled{% endif %}>
+                            <i class="fas fa-check me-2"></i>Procesar Venta
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

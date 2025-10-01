@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Tiendas{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-building me-2"></i>Tiendas</h2>
+            <a href="{{ url_for('nueva_tienda') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Nueva Tienda
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    {% for tienda in tiendas %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ tienda.nombre }}</h5>
+                <div class="mb-2">
+                    <small class="text-muted">Dirección:</small>
+                    <p class="mb-1">{{ tienda.direccion or 'No especificada' }}</p>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">Teléfono:</small>
+                    <p class="mb-1">{{ tienda.telefono or 'No especificado' }}</p>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">Ventas:</small>
+                    <span class="badge bg-success">{{ tienda.ventas|length }}</span>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="btn-group w-100" role="group">
+                    <button type="button" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-edit"></i> Editar
+                    </button>
+                    <button type="button" class="btn btn-outline-danger btn-sm">
+                        <i class="fas fa-trash"></i> Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-building fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">No hay tiendas registradas</h4>
+                <p class="text-muted">Comienza agregando tu primera tienda</p>
+                <a href="{{ url_for('nueva_tienda') }}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>Agregar Tienda
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
